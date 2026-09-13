@@ -1,9 +1,18 @@
 # hive-deepseek
 
+[![Clojars Project](https://img.shields.io/clojars/v/io.github.hive-agi/hive-deepseek.svg)](https://clojars.org/io.github.hive-agi/hive-deepseek)
+[![release](https://github.com/hive-agi/hive-deepseek/actions/workflows/release.yml/badge.svg)](https://github.com/hive-agi/hive-deepseek/actions/workflows/release.yml)
+
 DeepSeek Harness (`dsh`) as a hive vessel.
 
+```clojure
+io.github.hive-agi/hive-deepseek {:mvn/version "RELEASE"}
+```
+
+Pin the version from the Clojars badge.
+
 Addons describe what should appear once, as
-[hive-vessel](../hive-vessel) ops. `hive-deepseek` gets those ops into a
+[hive-vessel](https://github.com/hive-agi/hive-vessel) ops. `hive-deepseek` gets those ops into a
 running dsh, where they show up in dsh's own UI: panels in the right
 Sidebar, notices, file navigation, and events other dsh plugins can listen to.
 
@@ -52,7 +61,7 @@ Hooks:
 
 ```sh
 # hive side: bridge on 7925, pushes a demo sequence once a dsh tab connects
-clojure -Sdeps "$(cat local.deps.edn)" -M:dev -m hive-deepseek.demo 7925 600 /path/to/a/file
+clojure -M:dev -m hive-deepseek.demo 7925 600 /path/to/a/file
 
 # dsh side
 dsh plugin --profile web add ./dsh
@@ -62,9 +71,9 @@ dsh --profile web
 ## Tests
 
 ```sh
-clojure -Sdeps "$(cat local.deps.edn)" -M:test   # IAddon boundary with stub dependencies
-(cd dsh && npm test)                             # browser half, no dsh needed
-e2e/run.sh /tmp/hive-deepseek-e2e                # real dsh + headless Chromium
+clojure -M:test                     # IAddon boundary with stub dependencies
+(cd dsh && npm test)                # browser half, no dsh needed
+e2e/run.sh /tmp/hive-deepseek-e2e   # real dsh + headless Chromium
 ```
 
 `e2e/run.sh` does four things:
@@ -83,7 +92,17 @@ It then checks:
 - `json/event` is recorded
 - `ui/open-file` and panel links open the file in dsh's viewer
 
-`local.deps.edn` (untracked) points `hive-addon` and `hive-vessel` at sibling
-checkouts until they are published.
+To develop against sibling checkouts of `hive-addon` and `hive-vessel`, point
+an untracked `local.deps.edn` at them and run
+`clojure -Sdeps "$(cat local.deps.edn)" -M:test`.
+
+## Releases
+
+Every push to `main` that changes `src/`, `resources/`, `test/`, `deps.edn` or
+`version.edn` runs the suite, bumps the patch version, regenerates
+`CHANGELOG.md`, tags `vX.Y.Z` and deploys to Clojars through
+[hive-build](https://github.com/hive-agi/hive-build). Do not bump `VERSION` by hand.
+
+## License
 
 MIT
