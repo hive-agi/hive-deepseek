@@ -1,0 +1,8 @@
+.cpcache/
+target/
+.nrepl-port
+.lsp/.cache/
+.clj-kondo/.cache/
+local.deps.edn
+node_modules/
+e2e/out/

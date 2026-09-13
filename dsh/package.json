@@ -1,0 +1,25 @@
+{
+  "name": "dsh-hive-vessel",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin: make dsh a hive vessel. Panels, notices, file navigation and events pushed by hive addons through hive-vessel's :json dialect.",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["index.js", "lib/client.js", "cordis.patch.yml", "README.md"],
+  "keywords": ["dsh-plugin", "deepseek-harness", "hive", "vessel"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-sidebar-right"]
+    }
+  },
+  "scripts": {
+    "test": "node --test test/client.test.mjs"
+  }
+}

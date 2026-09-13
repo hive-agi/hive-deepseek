@@ -1,0 +1,6 @@
+{:project-id "hive-deepseek"
+ :parent "hive"
+ :description "DeepSeek Harness (dsh) as a hive vessel: hive.deepseek IAddon/IVessel pushing hive-vessel :json ops over hive-vessel.executor.sse to the dsh-hive-vessel plugin (dsh/), which renders them in dsh's right Sidebar, notices and file viewer."
+ :language :clojure
+ :tags ["hive-deepseek" "vessel" "deepseek-harness" "dsh" "dsh-plugin" "iaddon" "hive-vessel" "sse"]
+ :carto {:source-roots ["src" "test" "dev"]}}

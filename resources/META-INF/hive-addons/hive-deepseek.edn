@@ -1,0 +1,11 @@
+{:addon/id "hive.deepseek"
+ :addon/kind :addon
+ :addon/type :native
+ :addon/version "0.1.0-SNAPSHOT"
+ :addon/init-ns "hive-deepseek.addon"
+ :addon/init-fn "addon-ctor"
+ :addon/config {:deepseek/port 7925}
+ :addon/capabilities #{:vessel :health-reporting}
+ :addon/description "DeepSeek Harness (dsh) as a hive vessel: hive-vessel :json ops pushed to the dsh-hive-vessel browser plugin over a loopback SSE bridge"
+ :addon/maturity :experimental
+ :addon/trust-class :foss}
