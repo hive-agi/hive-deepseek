@@ -6,7 +6,9 @@
             [hive-addon.protocol :as addon]
             [hive-addon.vessel :as iv]
             [hive-deepseek.addon :as sut]
-            [hive-vessel.core :as v]))
+            [hive-vessel.core :as v]
+            [hive-spi.vessel :as render-port]
+            [hive-vessel.renderer :as renderer]))
 
 ;; SPDX-License-Identifier: MIT
 
@@ -46,6 +48,9 @@
   (let [[a r] (started {})]
     (try
       (is (:success? r))
+        (is (satisfies? render-port/IRenderer a))
+        (is (identical? a (get @renderer/renderers "hive.deepseek")))
+        (is (:error (render-port/render! a [{:op :ui/send-to-terminal :text "forbidden"}])))
       (is (pos? (get-in r [:metadata :port])))
       (is (:already-initialized? (addon/initialize! a {})))
       (is (= :ok (:status (addon/health a))))
@@ -53,6 +58,7 @@
       (finally (addon/shutdown! a)))
     (is (= :stopped (get-in (addon/health a) [:details :lifecycle])))
     (is (= {} (addon/hooks a)))
+        (is (not (contains? @renderer/renderers "hive.deepseek")))
     (is (nil? (addon/shutdown! a)))))
 
 (deftest a-port-in-use-fails-loudly

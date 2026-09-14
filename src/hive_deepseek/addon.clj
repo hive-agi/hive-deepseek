@@ -20,7 +20,9 @@
   (:require [hive-addon.protocol :as addon]
             [hive-deepseek.vessel :as vessel]
             [hive-vessel.core :as v]
-            [hive-vessel.executor.sse :as bridge]))
+            [hive-vessel.executor.sse :as bridge]
+            [hive-spi.vessel :as render-port]
+            [hive-vessel.renderer :as renderer]))
 
 ;; SPDX-License-Identifier: MIT
 
@@ -84,12 +86,20 @@
       nil)))
 
 (defrecord DeepseekAddon [state seed]
+  render-port/IRenderer
+  (renderer-id [_] addon-id-value)
+  (render! [_ ops] (renderer/deliver! (:target @state) ops))
   addon/IAddon
   (addon-id [_] addon-id-value)
   (addon-type [_] :native)
   (capabilities [_] #{:vessel :health-reporting})
-  (initialize! [_ runtime-config] (start! state seed runtime-config))
-  (shutdown! [_] (stop! state))
+  (initialize! [this runtime-config]
+    (let [result (start! state seed runtime-config)]
+      (when (:success? result) (renderer/register! this))
+      result))
+  (shutdown! [this]
+    (renderer/unregister! this)
+    (stop! state))
   (tools [_] [])
   (schema-extensions [_] [])
   (health [_]
