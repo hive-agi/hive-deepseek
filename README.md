@@ -68,6 +68,38 @@ dsh plugin --profile web add ./dsh
 dsh --profile web
 ```
 
+## Every hive provider in dsh
+
+`dsh/hive-dsh` boots dsh on the providers the swarm already uses. It reads
+hive-mcp's `~/.config/hive-mcp/config.edn` (`:llm-providers` for URLs and
+models, `:secrets` for where each key lives) and writes those routes as a
+`llm-pi-ai` patch next to the profile. Nothing about a provider is restated in
+dsh's config.
+
+```sh
+dsh/hive-dsh --dump --only venice,axon          # the patch, no keys read
+dsh/hive-dsh --check                            # HTTP status per keyed provider
+dsh/hive-dsh --profile hive --default venice/deepseek-v4-flash -- --no-open --port 3190
+```
+
+- **Keys.** Only `pass:` secret references are used. The wrapper runs
+  `pass show` and exports each key into dsh's environment only. The patch
+  names the variable (`VENICE_API_KEY`), never the value. A secret that is
+  not a `pass:` reference is skipped and reported.
+- **Rejected keys.** Before launch, each keyed provider is probed with its
+  key, and one answering 401/403 is left out. `--no-verify` skips the probe.
+  OpenRouter and Venice are probed on endpoints that need auth, because
+  OpenRouter serves `/models` without it.
+- **Limit of the probe.** It checks the key, not the balance. An account out
+  of credit passes and fails on the first completion: axon returned HTTP 402
+  on 2026-09-13.
+- **Runtimes.** Planning runs in cljw (`CLJW`, default `cljw`) and starts in
+  about 70 ms. The shell half exists only because cljw cannot spawn a
+  process. `DSH_BIN` picks the dsh executable.
+
+The routes are computed by `hive-deepseek.providers`, a pure `.cljc`
+namespace covered by the JVM test suite.
+
 ## Tests
 
 ```sh

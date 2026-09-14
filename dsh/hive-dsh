@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Boot DeepSeek Harness on every provider the hive swarm uses.
+#
+#   dsh/hive-dsh [options] [-- dsh app args]    launch
+#   dsh/hive-dsh --dump  [options]              print the patch, no keys read
+#   dsh/hive-dsh --check [options]              HTTP status per keyed provider
+#
+# Options: --profile NAME, --config PATH, --only a,b, --default provider/model,
+# --bridge URL, --no-verify. See script/hive_deepseek/dsh_launch.cljc.
+#
+# The planning runs in cljw (CLJW, default cljw on PATH); this wrapper only
+# reads each key with `pass show` into its own environment and execs dsh
+# (DSH_BIN, default dsh on PATH). No key is printed or written.
+#
+# SPDX-License-Identifier: MIT
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CLJW="${CLJW:-cljw}"
+
+# cljw notes that it skips the repo deps.edn Maven coords; the planner needs
+# none of them, so that one line is dropped from stderr.
+plan() {
+  "$CLJW" -cp "$REPO/src:$REPO/script" -m hive-deepseek.dsh-launch "$@" \
+    2> >(grep -v '^note: deps.edn skipped' >&2)
+}
+
+command=launch
+case "${1:-}" in
+  --dump) shift; plan dump "$@"; exit ;;
+  --check) shift; command=check ;;
+esac
+
+while read -r kind var entry; do
+  [ "$kind" = pass ] || continue
+  if value="$(pass show "$entry" 2>/dev/null | head -n1)" && [ -n "$value" ]; then
+    export "$var=$value"
+  else
+    echo "skip $var (pass show $entry failed)" >&2
+  fi
+done < <(plan refs "$@")
+unset value
+
+if [ "$command" = check ]; then
+  plan check "$@"
+  exit
+fi
+
+mapfile -t argv < <(plan launch "$@")
+[ "${#argv[@]}" -gt 0 ] || exit 1
+exec "${argv[@]}"
