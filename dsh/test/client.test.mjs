@@ -56,6 +56,24 @@ test('show-panel stores, orders and focuses panels; close drops and refocuses', 
   assert.equal(s.panels.a, undefined)
 })
 
+test('neutral (Lens C5) names reduce exactly like the legacy ui/* names', () => {
+  const neutralPanel = (id, title) => ({
+    op: 'show', id, doc: { title, 'doc/blocks': [] }, lines: [{ text: title, face: 'title' }],
+  })
+  let legacy = client.reduce(client.reduce(client.initialState(), panel('a', 'A')), panel('b', 'B'))
+  let neutral = client.reduce(client.reduce(client.initialState(), neutralPanel('a', 'A')), neutralPanel('b', 'B'))
+  assert.deepEqual(neutral.order, legacy.order)
+  assert.equal(neutral.panels.a.title, 'A')
+  neutral = client.reduce(neutral, { op: 'close', id: 'a' })
+  assert.deepEqual(neutral.order, ['b'])
+  neutral = client.reduce(neutral, { op: 'notify', message: 'hi', level: 'error' })
+  assert.equal(neutral.notices.at(-1).level, 'error')
+  assert.deepEqual(client.effectsOf(neutralPanel('a', 'A')), [{ kind: 'reveal-tab' }])
+  assert.deepEqual(client.effectsOf({ op: 'open-file', file: '/x', line: 3 }),
+    [{ kind: 'open-file', file: '/x', line: 3, column: undefined }])
+  assert.equal(client.normalize({ op: 'mystery/op' }).op, 'mystery/op')
+})
+
 test('notices and events are bounded; unknown ops are ignored', () => {
   let s = client.initialState()
   for (let i = 0; i < 30; i++) s = client.reduce(s, { op: 'ui/notify', message: `n${i}` })
