@@ -44,8 +44,27 @@ function withNotice(state, message, level) {
   return Object.assign({}, state, { notices: notices.slice(-MAX_NOTICES) });
 }
 
+// hive-vessel's :json dialect sends a client that advertised features (Lens C5)
+// neutral names; map them back so one reducer reads either vocabulary.
+const LEGACY_OPS = {
+  show: "ui/show-panel", close: "ui/close-panel", focus: "ui/focus-tab",
+  append: "ui/append-tab", notify: "ui/notify", "open-file": "ui/open-file",
+};
+
+/** MESSAGE in the legacy ui/* vocabulary, whichever vocabulary it arrived in. */
+function normalize(message) {
+  if (!message || !LEGACY_OPS[message.op]) return message;
+  const out = Object.assign({}, message, { op: LEGACY_OPS[message.op] });
+  if (out["panel/id"] === undefined && out.id !== undefined) out["panel/id"] = out.id;
+  if (out.doc && out.doc["doc/title"] === undefined && out.doc.title !== undefined) {
+    out.doc = Object.assign({}, out.doc, { "doc/title": out.doc.title });
+  }
+  return out;
+}
+
 /** The state after one bridge MESSAGE. Unknown ops leave it unchanged. */
 function reduce(state, message) {
+  message = normalize(message);
   const op = message && message.op;
   switch (op) {
     case "ui/show-panel": {
@@ -82,6 +101,7 @@ function reduce(state, message) {
 
 /** The side effects one MESSAGE asks of dsh, as data. */
 function effectsOf(message) {
+  message = normalize(message);
   switch (message && message.op) {
     case "ui/show-panel": return [{ kind: "reveal-tab" }];
     case "ui/notify": return [{ kind: "toast", message: message.message, level: message.level || "info" }];
@@ -424,6 +444,7 @@ module.exports = {
   apply: apply,
   // exposed for tests
   initialState: initialState,
+  normalize: normalize,
   reduce: reduce,
   effectsOf: effectsOf,
   fileAddress: fileAddress,

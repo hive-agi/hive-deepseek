@@ -77,7 +77,9 @@
       (let [dispatch! (:vessel/dispatch! (addon/hooks a))
             r (dispatch! {:op :stub/frame :payload {:n 7}})]
         (is (:ok r))
-        (is (= "frame 7" (get-in r [:ok :plan/ops 0 :native/payload "doc" "doc/title"])))
+        ;; The DeepSeek target advertises :vessel/features, so the :json
+        ;; dialect sends the neutral names (hive-vessel Lens C5): "title".
+        (is (= "frame 7" (get-in r [:ok :plan/ops 0 :native/payload "doc" "title"])))
         (is (= #{"stub"} (get-in (addon/health a) [:details :panels]))))
       (finally (addon/shutdown! a)))))
 
