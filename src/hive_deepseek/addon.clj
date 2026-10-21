@@ -1,22 +1,26 @@
 (ns hive-deepseek.addon
   "hive.deepseek IAddon: runs the SSE bridge (hive-vessel.executor.sse), owns
    the vessel registry, and
-   presents on behalf of every dependency that offers a presenter seat.
+   presents on behalf of the dependencies it is told to.
 
    Config (manifest :addon/config merged with runtime config):
      :deepseek/port          bridge port (default 7925, 0 = any)
      :deepseek/host          bind host (default loopback)
      :deepseek/token         shared secret the dsh plugin must send
      :deepseek/presenter-id  id registered on presenter seats (default :deepseek)
+     :deepseek/present-on    addon ids whose presenter seat this vessel takes
+                             (default #{}: none)
 
    Registry: hive-vessel's standard translators, then the `:vessel/translators`
    hook of every injected dependency, then translators added at runtime
    through the `:vessel/register-translators!` hook.
 
-   Presenter seats: a dependency whose hooks include a key named
-   `register-presenter!` (hive.carto-flow's is one) gets this vessel's
-   delivery registered under the presenter id, so its frames reach dsh with no
-   code on either side naming the other."
+   Presenter seats: a dependency named in :deepseek/present-on whose hooks
+   include a key named `register-presenter!` (hive.carto-flow's is one) gets
+   this vessel's delivery registered under the presenter id, so its frames
+   reach dsh with no code on either side naming the other. Opt-in, because a
+   brick (hive-carto-flow-deepseek) registers under :deepseek itself, and two
+   registrars would replace each other on every mount."
   (:require [hive-addon.protocol :as addon]
             [hive-deepseek.vessel :as vessel]
             [hive-vessel.core :as v]
@@ -37,15 +41,30 @@
 (defn- hook-named [hooks hook-name]
   (some (fn [[k f]] (when (and (= hook-name (name k)) (fn? f)) f)) hooks))
 
+(defn- opted-in-hooks
+  "Hooks of the dependencies `:deepseek/present-on` (a set of addon ids,
+   default empty) names. Only these are offered this vessel's delivery: a
+   brick such as hive-carto-flow-deepseek registers under :deepseek itself,
+   and a second registrar swept in by hook name would replace it on mount.
+   A dependency whose id or hooks cannot be read is not a seat."
+  [config]
+  (let [present-on (set (:deepseek/present-on config))]
+    (keep (fn [[_ dep]]
+            (when (and (addon/addon? dep)
+                       (contains? present-on (try (addon/addon-id dep)
+                                                  (catch Throwable _unreadable-id nil))))
+              (try (addon/hooks dep) (catch Throwable _unreadable-hooks nil))))
+          (:mount/dependencies config))))
+
 (defn- register-presenters!
-  "Register DELIVER! on every dependency presenter seat. Returns the
-   unregister fns for the seats that accepted."
+  "Register DELIVER! on the presenter seat of every opted-in dependency.
+   Returns the unregister fns for the seats that accepted."
   [config presenter-id deliver!]
   (vec (keep (fn [hooks]
                (when-let [register (hook-named hooks "register-presenter!")]
                  (when (register presenter-id deliver!)
                    (hook-named hooks "unregister-presenter!"))))
-             (dependency-hooks config))))
+             (opted-in-hooks config))))
 
 (defn- start! [state seed runtime-config]
   (locking state
