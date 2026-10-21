@@ -6,7 +6,7 @@
 #   dsh/hive-dsh --check [options]              HTTP status per keyed provider
 #
 # Options: --profile NAME, --config PATH, --only a,b, --default provider/model,
-# --bridge URL, --no-verify. See script/hive_deepseek/dsh_launch.cljc.
+# --bridge URL, --no-verify, --probe-balance. See script/hive_deepseek/dsh_launch.cljc.
 #
 # The planning runs in cljw (CLJW, default cljw on PATH); this wrapper only
 # reads each key with `pass show` into its own environment and execs dsh

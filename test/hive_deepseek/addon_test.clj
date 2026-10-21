@@ -39,10 +39,12 @@
                   {:stub/register-presenter! (fn [id deliver!] (swap! presenters assoc id deliver!) deliver!)
                    :stub/unregister-presenter! (fn [id] (swap! presenters dissoc id) id)})]))
 
-(defn- started [deps]
-  (let [a (sut/addon-ctor {:deepseek/port 0})
-        r (addon/initialize! a {:mount/dependencies deps})]
-    [a r]))
+(defn- started
+  ([deps] (started deps {}))
+  ([deps seed]
+   (let [a (sut/addon-ctor (merge {:deepseek/port 0} seed))
+         r (addon/initialize! a {:mount/dependencies deps})]
+     [a r])))
 
 (deftest lifecycle-is-idempotent-and-reported
   (let [[a r] (started {})]
@@ -95,7 +97,8 @@
 (deftest presenter-seats-receive-this-vessels-delivery
   (let [[presenters seat] (presenter-seat)
         [a r] (started {"stub.presenter" seat
-                        "stub.translators" (->StubAddon "stub.translators" {v/hook-key [frame-translator]})})]
+                        "stub.translators" (->StubAddon "stub.translators" {v/hook-key [frame-translator]})}
+                       {:deepseek/present-on #{"stub.presenter"}})]
     (try
       (is (= 1 (get-in r [:metadata :presenters])))
       (testing "the registered delivery takes presenter envelopes"
@@ -105,6 +108,19 @@
           (is (= #{"stub"} (get-in (addon/health a) [:details :panels])))))
       (finally (addon/shutdown! a)))
     (is (empty? @presenters) "shutdown unregisters the presenter")))
+
+(deftest a-presenter-seat-not-opted-in-is-left-alone
+  (testing "a dependency offering register-presenter! is not swept unless
+            :deepseek/present-on names it, so a brick that registers :deepseek
+            itself is never replaced by this addon on mount"
+    (doseq [seed [{} {:deepseek/present-on #{"some.other"}}]]
+      (let [[presenters seat] (presenter-seat)
+            [a r] (started {"stub.presenter" seat} seed)]
+        (try
+          (is (:success? r))
+          (is (= 0 (get-in r [:metadata :presenters])) (pr-str seed))
+          (is (empty? @presenters) (pr-str seed))
+          (finally (addon/shutdown! a)))))))
 
 (deftest the-vessel-faces-agree
   (let [[a _] (started {})]
