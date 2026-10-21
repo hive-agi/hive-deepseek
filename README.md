@@ -36,13 +36,21 @@ Two halves, one repository:
 `hive-deepseek.addon/addon-ctor`, manifest id `hive.deepseek`.
 
 Config: `:deepseek/port` (7925), `:deepseek/host` (loopback),
-`:deepseek/token`, `:deepseek/presenter-id` (`:deepseek`).
+`:deepseek/token`, `:deepseek/presenter-id` (`:deepseek`),
+`:deepseek/present-on` (`#{}`).
 
 On initialize it starts the bridge and builds its registry: hive-vessel's
 standard translators, plus the `:vessel/translators` hook of every injected
-dependency. Dependencies that expose a `register-presenter!` hook
-(hive-carto-flow does) get this vessel's delivery registered, so their frames
-reach dsh. Neither side's code names the other.
+dependency. A dependency named in `:deepseek/present-on` (a set of addon
+ids) that exposes a `register-presenter!` hook (hive-carto-flow does) gets
+this vessel's delivery registered, so its frames reach dsh. Neither side's
+code names the other.
+
+Presenting is opt-in. hive-carto-flow-deepseek already registers a presenter
+under `:deepseek`. If hive.deepseek also swept every dependency's
+`register-presenter!`, the two would replace each other on every mount. To
+have this addon present for hive.carto-flow in place of the brick, set
+`:deepseek/present-on #{"hive.carto-flow"}`.
 
 Hooks:
 
@@ -90,9 +98,11 @@ dsh/hive-dsh --profile hive --default venice/deepseek-v4-flash -- --no-open --po
   key, and one answering 401/403 is left out. `--no-verify` skips the probe.
   OpenRouter and Venice are probed on endpoints that need auth, because
   OpenRouter serves `/models` without it.
-- **Limit of the probe.** It checks the key, not the balance. An account out
-  of credit passes and fails on the first completion: axon returned HTTP 402
-  on 2026-09-13.
+- **Balance.** The key probe checks the key, not the balance: an account out
+  of credit passes it and fails on the first completion (axon returned HTTP
+  402 on 2026-09-13). `--probe-balance` also sends each keyed provider a
+  one-token completion and leaves out one that answers 402. It costs one call
+  per provider, so it is off by default.
 - **Runtimes.** Planning runs in cljw (`CLJW`, default `cljw`) and starts in
   about 70 ms. The shell half exists only because cljw cannot spawn a
   process. `DSH_BIN` picks the dsh executable.

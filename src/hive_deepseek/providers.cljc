@@ -107,6 +107,44 @@
   [routes env-names]
   (filterv #(or (nil? (:apiKeyEnv %)) (contains? env-names (:apiKeyEnv %))) routes))
 
+(defn route-verdict
+  "What a probe's STATUS says about serving a route:
+     :skip-key      401/403, the provider rejects the key
+     :skip-balance  402, the key is good but the account is out of credit
+     :keep          anything else, a 5xx and a network error (a string) included:
+                    they say nothing about the key or the balance."
+  [status]
+  (cond
+    (contains? #{401 403} status) :skip-key
+    (= 402 status)                :skip-balance
+    :else                         :keep))
+
+(defn balance-probe-request
+  "The cheapest call that proves ROUTE can be billed: a one-token completion on
+   its first model. A key probe answers 200 on an account with no credit; only
+   a completion answers 402. It costs one call per provider."
+  [{:keys [baseURL models]}]
+  {:url (str baseURL chat-suffix)
+   :body {:model (:id (first models))
+          :messages [{:role "user" :content "."}]
+          :max_tokens 1}})
+
+(defn screen
+  "ROUTES split by what STATUS-OF (route -> probe status) says of each keyed
+   one: {:served [route ...] :skipped [{:provider :verdict :status} ...]}.
+   A keyless route is served without being probed."
+  [routes status-of]
+  (reduce (fn [acc {:keys [provider apiKeyEnv] :as r}]
+            (if (nil? apiKeyEnv)
+              (update acc :served conj r)
+              (let [status (status-of r)
+                    verdict (route-verdict status)]
+                (if (= :keep verdict)
+                  (update acc :served conj r)
+                  (update acc :skipped conj {:provider provider :verdict verdict :status status})))))
+          {:served [] :skipped []}
+          routes))
+
 (defn- dsh-route [r]
   (-> (select-keys r [:displayName :api :baseURL :apiKeyEnv :models])
       (update :models (fn [ms] (mapv #(assoc % :name (str (:id %) " (" (:displayName r) ")")) ms)))))

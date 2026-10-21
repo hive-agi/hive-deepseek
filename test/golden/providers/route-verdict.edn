@@ -1,0 +1,7 @@
+{:down :keep,
+ :forbidden :skip-key,
+ :network :keep,
+ :no-credit :skip-balance,
+ :ok :keep,
+ :rate-limited :keep,
+ :unauthorized :skip-key}
