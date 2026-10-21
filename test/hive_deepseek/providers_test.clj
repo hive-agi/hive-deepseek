@@ -1,7 +1,9 @@
 (ns hive-deepseek.providers-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [hive-deepseek.providers :as p]))
+            [clojure.test.check.generators :as gen]
+            [hive-deepseek.providers :as p]
+            [hive-test.trifecta :refer [deftrifecta]]))
 
 (def llm-providers
   {:venice {:api-url "https://api.venice.ai/api/v1/chat/completions"
@@ -77,3 +79,48 @@
   (is (= "- {\"id\": \"a\", \"n\": 1, \"ok\": true, \"xs\": [\"q\\\"uote\", null]}\n- {\"id\": \"b\"}"
          (p/->yaml [{:id "a" :n 1 :ok true :xs ["q\"uote" nil]} {:id :b}])))
   (is (= "{\"k\": \"line\\nbreak\"}" (p/->yaml {:k "line\nbreak"}))))
+
+(deftest route-verdict-reads-a-probe-status
+  (testing "a rejected key and an empty balance are told apart"
+    (is (= :skip-key (p/route-verdict 401)))
+    (is (= :skip-key (p/route-verdict 403)))
+    (is (= :skip-balance (p/route-verdict 402))))
+  (testing "anything else keeps the route: a 200, a 5xx, a network error"
+    (is (= :keep (p/route-verdict 200)))
+    (is (= :keep (p/route-verdict 429)))
+    (is (= :keep (p/route-verdict 503)))
+    (is (= :keep (p/route-verdict "error connection refused")))
+    (is (= :keep (p/route-verdict nil)))))
+
+(deftrifecta route-verdict
+  hive-deepseek.providers/route-verdict
+  {:golden-path   "test/golden/providers/route-verdict.edn"
+   :cases         {:ok 200 :unauthorized 401 :forbidden 403 :no-credit 402
+                   :rate-limited 429 :down 503 :network "error timeout"}
+   :gen           (gen/one-of [(gen/choose 100 599) gen/string-alphanumeric])
+   :pred          #{:keep :skip-key :skip-balance}
+   :property-type :pred
+   :num-tests     200
+   :mutations     [["402-kept" (fn [s] (if (contains? #{401 403} s) :skip-key :keep))]
+                   ["all-skipped" (fn [_] :skip-key)]]})
+
+(deftest balance-probe-is-a-one-token-completion-on-the-first-model
+  (let [venice (last (p/routes llm-providers))]
+    (is (= {:url "https://api.venice.ai/api/v1/chat/completions"
+            :body {:model "deepseek-v4-flash"
+                   :messages [{:role "user" :content "."}]
+                   :max_tokens 1}}
+           (p/balance-probe-request venice)))))
+
+(deftest screen-drops-what-the-probes-refuse
+  (let [rs (p/routes llm-providers [:venice :openrouter :groq])
+        statuses {"venice" 402 "openrouter" 200 "groq" 401}
+        {:keys [served skipped]} (p/screen rs #(get statuses (:provider %)))]
+    (is (= ["openrouter"] (mapv :provider served)))
+    (is (= [{:provider "groq" :verdict :skip-key :status 401}
+            {:provider "venice" :verdict :skip-balance :status 402}]
+           skipped))
+    (testing "a keyless route is never probed and always served"
+      (is (= ["ollama-compat"]
+             (mapv :provider (:served (p/screen (p/routes llm-providers [:ollama-compat])
+                                                (fn [_] (throw (ex-info "probed" {})))))))))))
